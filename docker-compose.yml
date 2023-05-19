@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  main_node:
+    build: ./main_node/.
+    environment:
+      - PORT=5000
+    networks:
+      - secret
+  node_1:
+    build: ./node/.
+    ports:
+      - 5001:5001
+    depends_on:
+      - main_node
+    links:
+      - main_node
+    environment:
+      - PORT=5001
+      - MAIN_NODE_URL=http://main_node:5000
+    networks:
+      - public
+      - secret
+  node_2:
+    build: ./node/.
+    ports:
+      - 5002:5002
+    depends_on:
+      - main_node
+    links:
+      - main_node
+    environment:
+      - PORT=5002
+      - MAIN_NODE_URL=http://main_node:5000
+    networks:
+      - public
+      - secret
+
+networks:
+  public:
+    driver: bridge
+  secret:
+    driver: bridge
+    internal: true
