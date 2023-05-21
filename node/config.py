@@ -6,4 +6,7 @@ class Config:
         self.port = os.getenv("PORT")
         self.leader = False
         self.brokers = {}
+
+    def get_leader(self) -> str:
+        return [k for k, v in self.brokers.items() if v][0]
         
