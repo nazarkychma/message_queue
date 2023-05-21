@@ -1,5 +1,5 @@
 from config import Config
-from flask import Flask, request, abort, make_response
+from flask import Flask, request, make_response
 import requests
 
 app = Flask(__name__)
@@ -8,6 +8,7 @@ messages = {}
 
 def setup() -> None:
     response = requests.post(f"{config.main_node_url}/register", data={"port": config.port}).json()
+    print(response)
     if response["leader"]:
         config.leader = True
     config.brokers = response["brokers"]
@@ -17,12 +18,14 @@ def setup() -> None:
 @app.route("/publish", methods=["POST"])
 def publish():
     message = request.form.get("message")
+    print(message)
     if message is None:
         return make_response({"message": "message is required"}, 404)
     if config.leader:
-        index = len(messages)
+        index = str(len(messages))
         messages[index] = message
-        requests.post(f"{config.main_node_url}/sync", data={"messages": messages})
+        if len(config.brokers) > 1:
+            requests.post(f"{config.main_node_url}/sync", json={"messages": messages})
         return {"status": "ok", "brokers": config.brokers}
     try:
         response = requests.get(f"{config.get_leader()}/health").json()
@@ -32,31 +35,32 @@ def publish():
     except requests.exceptions.ConnectionError:
         return make_response({"message": "leader is broken"}, 503)
 
-@app.route("/assign", methods=["POST"])
+@app.route("/assign", methods=["GET"])
 def assign():
     config.leader = True
     return {"status": "ok"}
 
 @app.route("/sync", methods=["POST"])
 def sync():
-    updated_messages = request.form.get("messages")
-    if messages is None:
-        abort(404)
+    global messages
+    updated_messages = request.get_json()["messages"]
+    if updated_messages is None:
+        return make_response({"message": "messages list is required"}, 404)
     messages = updated_messages
     return {"status": "ok"}
 
 @app.route("/update_brokers", methods=["POST"])
 def update_brokers():
-    brokers = request.form.get("brokers")
+    brokers = request.get_json()["brokers"]
     if brokers is None:
-        abort(404)
+        return make_response({"message": "brokers list is required"}, 404)
     config.brokers = brokers
     return {"status": "ok"}
 
 @app.route('/get', methods=["GET"])
 def get_messages():
     consumer_id = request.form.get("consumer_id")
-    index = request.form.get("consumer_id")
+    index = request.form.get("index")
     if consumer_id is None:
         consumer_id = "Default"
     if index == "-1":
@@ -64,8 +68,8 @@ def get_messages():
         index = response["index"]
     message = messages.get(index)
     if message is None:
-        abort(404)
-    request.post(f"{config.main_node_url}/commit_index", data={"index": index, "consumer_id": consumer_id})
+        return make_response({"message": "there is no message with such index"}, 409)
+    requests.post(f"{config.main_node_url}/commit_index", data={"index": index, "consumer_id": consumer_id})
     return {index: message}
 
 @app.route("/health", methods=["GET"])
