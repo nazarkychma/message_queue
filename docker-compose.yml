@@ -5,8 +5,16 @@ services:
     build: ./main_node/.
     environment:
       - PORT=5000
+      - DB_URI=postgresql://docker:docker@postgres:5432/docker
     ports:
       - 5000:5000
+    networks:
+      - public
+      - secret
+  postgres:
+    build: ./postgres/.
+    ports:
+      - 5432:5432
     networks:
       - public
       - secret

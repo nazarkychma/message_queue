@@ -4,7 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip3 install flask
-RUN pip3 install requests
+RUN pip3 install flask requests Flask-SQLAlchemy psycopg2-binary flask_bcrypt flask_jwt_extended cffi cryptography pycparser
 
 CMD ["python3", "main.py"]

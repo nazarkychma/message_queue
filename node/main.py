@@ -1,8 +1,13 @@
 from config import Config
-from flask import Flask, request, make_response
+from flask import Flask, request, make_response, jsonify
+from flask_jwt_extended import JWTManager, verify_jwt_in_request, get_jwt
+from functools import wraps
 import requests
 
 app = Flask(__name__)
+app.config['JWT_ALGORITHM'] = 'RS256'
+app.config['JWT_PUBLIC_KEY'] = open('public_key.pem').read()
+jwt = JWTManager(app)
 config = Config()
 messages = {}
 
@@ -14,8 +19,21 @@ def setup() -> None:
     config.brokers = response["brokers"]
     print(config.brokers, config.leader)
 
+def permission_required(permission_name):
+    def required(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            verify_jwt_in_request()
+            permissions = get_jwt()
+            if not permissions[permission_name]:
+                return jsonify(msg='Access denied!'), 403
+            else:
+                return fn(*args, **kwargs)
+        return wrapper
+    return required
 
 @app.route("/publish", methods=["POST"])
+@permission_required("can_produce")
 def publish():
     message = request.form.get("message")
     print(message)
@@ -58,6 +76,7 @@ def update_brokers():
     return {"status": "ok"}
 
 @app.route('/get', methods=["GET"])
+@permission_required("can_consume")
 def get_messages():
     consumer_id = request.form.get("consumer_id")
     index = request.form.get("index")
